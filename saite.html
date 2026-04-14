@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="lv">
+<head>
+    <meta charset="UTF-8">
+    <title>Gurķu Impērija - Cucumbers Clicker</title>
+    <style>
+        @import url('https://googleapis.com');
+        body { background: #1b5e20; font-family: 'Fredoka One', cursive; margin: 0; display: flex; height: 100vh; color: #fff; overflow: hidden; }
+        .sidebar { width: 240px; background: #2e7d32; padding: 20px; display: flex; flex-direction: column; box-shadow: 5px 0 15px rgba(0,0,0,0.3); z-index: 10; }
+        .main { flex: 1; background: #e8f5e9; background-image: radial-gradient(#81c784 15%, transparent 16%); background-size: 40px 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; color: #1b5e20; }
+        #money { font-size: 4rem; margin: 0; text-shadow: 3px 3px 0 white; pointer-events: none; text-align: center; }
+        #big-pickle { font-size: 180px; cursor: pointer; user-select: none; transition: transform 0.05s; z-index: 5; }
+        #big-pickle:active { transform: scale(0.85); }
+        
+        #golden-pickle { position: absolute; font-size: 80px; cursor: pointer; display: none; z-index: 100; filter: drop-shadow(0 0 20px gold); animation: gSpin 0.5s infinite alternate; }
+        @keyframes gSpin { from { transform: scale(1); } to { transform: scale(1.2) rotate(10deg); } }
+
+        .nav-btn { background: #4caf50; border: none; color: white; padding: 12px; margin: 8px 0; border-radius: 15px; cursor: pointer; font-family: inherit; font-size: 1.1rem; box-shadow: 0 4px 0 #1b5e20; }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
+        .modal { background: white; width: 480px; padding: 25px; border-radius: 30px; border: 8px solid #2e7d32; color: #333; max-height: 85vh; overflow-y: auto; }
+        
+        .card { background: #f1f8e9; border: 3px solid #4caf50; padding: 12px; margin: 8px 0; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .card.too-expensive { opacity: 0.5; background: #ffebee; border-color: #e57373; cursor: not-allowed; }
+        
+        .click-eff { position: absolute; color: #2e7d32; font-size: 1.5rem; font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 100; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-150px); opacity: 0; } }
+        
+        .stats-container { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 15px; margin-top: 10px; font-size: 0.85rem; border-left: 5px solid #ffeb3b; }
+        .stat-value { color: #ffeb3b; font-size: 1.1rem; display: block; margin-bottom: 5px; }
+
+        #notif { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: #ffeb3b; padding: 15px 30px; border-radius: 20px; transition: 0.5s; z-index: 1000; border: 4px solid #fff; color: #000; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        #notif.show { top: 20px; }
+        #buff-notice { position: fixed; bottom: 20px; right: 20px; background: gold; color: #000; padding: 10px 20px; border-radius: 10px; display: none; font-weight: bold; border: 3px solid #b8860b; z-index: 1000; }
+    </style>
+</head>
+<body>
+
+<div id="golden-pickle" onclick="catchGolden()">✨🥒✨</div>
+<div id="buff-notice">🚀 X7 MULTIPLIER!</div>
+<div id="notif">🏆 ACHIEVEMENT UNLOCKED!</div>
+
+<div class="sidebar">
+    <h2 style="text-align:center">CUCUMBER CLICKER 🥒</h2>
+    <button class="nav-btn" onclick="openM('shop')">SHOP</button>
+    <button class="nav-btn" onclick="openM('skins')">SKINS</button>
+    <button class="nav-btn" onclick="openM('ach')">ACHIEVEMENTS</button>
+    <button class="nav-btn" onclick="openM('top')">TOP</button>
+    
+    <div class="stats-container">
+        <small>TOTAL CLICKS</small>
+        <span id="total-clicks-v" class="stat-value">0</span>
+        <small>TIME PLAYED</small>
+        <span id="time-played-v" class="stat-value">0s</span>
+    </div>
+
+    <button class="nav-btn" style="background:#d32f2f; margin-top:auto" onclick="logout()">LOGOUT</button>
+    <p>User: <span id="u-name">?</span></p>
+</div>
+
+<div class="main">
+    <h1 id="money">0 €</h1>
+    <div id="big-pickle" onclick="clickP(event)">🥒</div>
+    <p>GPC: <span id="gpc-v">1</span> | GPS: <span id="gps-v">0</span></p>
+</div>
+
+<div id="modal-box" class="overlay" onclick="closeM()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h2 id="m-title" style="text-align:center; color:#2e7d32;">TITLE</h2>
+        <div id="m-content"></div>
+        <button class="nav-btn" style="width:100%; margin-top:10px" onclick="closeM()">CLOSE</button>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playS(f, type='sine', d=0.1) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
+    }
+
+    const user = localStorage.getItem('currentUser') || 'Guest';
+    document.getElementById('u-name').innerText = user;
+
+    // 100 Grūti sasniegumi (Laiks, Klikšķi, Nauda)
+    const allAchievements = [];
+    // Laika sasniegumi
+    const timeGoals = [60, 300, 600, 1800, 3600, 7200, 14400, 28800, 43200, 86400];
+    const timeNames = ["Iesācējs", "Pacietīgais", "Stundu turētājs", "Gurķu vergs", "Diennakts sargs"];
+    timeGoals.forEach((sec, i) => {
+        allAchievements.push({id: 't'+i, n: (timeNames[i] || "Laika meistars "+i), req: sec, t: 't', b: (i+1)*500});
+    });
+    // Klikšķu sasniegumi (Grūtāki)
+    for(let i=1; i<=40; i++) allAchievements.push({id: 'c'+i, n: `Clicker Lv ${i}`, req: i*500, t: 'c', b: i*200});
+    // Naudas sasniegumi (Daudz grūtāki)
+    for(let i=1; i<=50; i++) allAchievements.push({id: 'm'+i, n: `Wealth Lv ${i}`, req: Math.pow(i, 3)*1000, t: 'm', b: i*1000});
+
+    const shopItems = {
+        f: { n: "Smashed Fork", c: 20, p: 1, t: "c" },
+        w: { n: "Rusty Water Can", c: 150, p: 5, t: "c" },
+        g: { n: "Old Grandma", c: 300, p: 4, t: "s" },
+        gs: { n: "Golden Spoon", c: 1000, p: 15, t: "c" },
+        s: { n: "Greenhouse", c: 2500, p: 30, t: "s" },
+        ms: { n: "Magic Salt", c: 8000, p: 60, t: "c" },
+        r: { n: "Industrial Robot", c: 20000, p: 150, t: "s" },
+        pp: { n: "Power Press", c: 50000, p: 250, t: "c" },
+        t: { n: "Turbo Tractor", c: 120000, p: 800, t: "s" },
+        fa: { n: "Pickle Factory", c: 500000, p: 4000, t: "s" },
+        hc: { n: "Diamond Hammer", c: 1500000, p: 2000, t: "c" },
+        mf: { n: "Global Mega Farm", c: 10000000, p: 25000, t: "s" },
+        st: { n: "Orbital Satellite", c: 100000000, p: 500000, t: "s" },
+        ai: { n: "Sentient AI", c: 1000000000, p: 10000000, t: "s" },
+        go: { n: "God Mode", c: 100000000000, p: 1000000000, t: "s" }
+    };
+
+    let s = JSON.parse(localStorage.getItem('g_'+user)) || { m:0, clicks:0, timePlayed:0, s:'🥒', skins:['🥒'], up:{}, ach:{} };
+    Object.keys(shopItems).forEach(key => { if (!s.up[key]) s.up[key] = { ...shopItems[key], cnt: 0 }; });
+
+    let mult = 1;
+
+    function formatTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const sec = seconds % 60;
+        return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm ' : ''}${sec}s`;
+    }
+
+    function update() {
+        let gpc = 1, gps = 0;
+        Object.values(s.up).forEach(u => {
+            if(u.t == 'c') gpc += (u.p * u.cnt); else gps += (u.p * u.cnt);
+        });
+        document.getElementById('money').innerText = Math.floor(s.m).toLocaleString() + " €";
+        document.getElementById('gpc-v').innerText = (gpc * mult).toLocaleString();
+        document.getElementById('gps-v').innerText = (gps * mult).toLocaleString();
+        document.getElementById('big-pickle').innerText = s.s;
+        
+        document.getElementById('total-clicks-v').innerText = s.clicks.toLocaleString();
+        document.getElementById('time-played-v').innerText = formatTime(s.timePlayed);
+
+        allAchievements.forEach(a => {
+            let val = (a.t == 'c') ? s.clicks : (a.t == 'm' ? s.m : s.timePlayed);
+            if(val >= a.req && !s.ach[a.id]) {
+                s.ach[a.id] = true; s.m += a.b; showNotif(a.n); playS(800, 'square', 0.2);
+            }
+        });
+
+        localStorage.setItem('g_'+user, JSON.stringify(s));
+        let top = JSON.parse(localStorage.getItem('global_top')) || {};
+        if(s.m > 0) { top[user] = Math.floor(s.m); localStorage.setItem('global_top', JSON.stringify(top)); }
+    }
+
+    function showNotif(txt) {
+        const n = document.getElementById('notif'); n.innerText = "🏆 " + txt;
+        n.classList.add('show'); setTimeout(() => n.classList.remove('show'), 3000);
+    }
+
+    function clickP(e) {
+        let curGpc = 1; Object.values(s.up).forEach(u => { if(u.t == 'c') curGpc += (u.p * u.cnt); });
+        s.m += (curGpc * mult); s.clicks++;
+        playS(400 + Math.random()*100);
+        const eff = document.createElement('div');
+        eff.className = 'click-eff'; eff.innerText = `+${(curGpc * mult).toLocaleString()}€`;
+        eff.style.left = e.clientX + 'px'; eff.style.top = e.clientY + 'px';
+        document.body.appendChild(eff); setTimeout(() => eff.remove(), 800);
+        update();
+    }
+
+    function catchGolden() {
+        document.getElementById('golden-pickle').style.display = 'none';
+        playS(900, 'square', 0.4); mult = 7;
+        document.getElementById('buff-notice').style.display = 'block';
+        setTimeout(() => { mult = 1; document.getElementById('buff-notice').style.display = 'none'; update(); }, 15000);
+        update();
+    }
+
+    setInterval(() => { s.timePlayed++; update(); }, 1000);
+
+    setInterval(() => {
+        if(Math.random() > 0.85) {
+            const gp = document.getElementById('golden-pickle');
+            gp.style.left = Math.random()*70+15+'%'; gp.style.top = Math.random()*70+15+'%';
+            gp.style.display = 'block'; setTimeout(() => gp.style.display = 'none', 4000);
+        }
+    }, 40000);
+
+    function openM(type) {
+        const c = document.getElementById('m-content'); const t = document.getElementById('m-title');
+        document.getElementById('modal-box').style.display = 'flex'; c.innerHTML = "";
+        if(type == 'shop') {
+            t.innerText = "SHOP";
+            Object.entries(s.up).sort((a,b) => a[1].cost - b[1].cost).forEach(([id, u]) => {
+                const isTooExpensive = s.m < u.c;
+                c.innerHTML += `<div class="card ${isTooExpensive ? 'too-expensive' : ''}" onclick="buy('${id}')">
+                    <div><b>${u.n}</b> (${u.cnt})<br><small>+${u.p.toLocaleString()} ${u.t=='c'?'Click Power':'per Sec'}</small></div>
+                    <b>${Math.floor(u.c).toLocaleString()}€</b></div>`;
+            });
+        } else if(type == 'ach') {
+            t.innerText = "ACHIEVEMENTS";
+            allAchievements.forEach(a => {
+                const done = s.ach[a.id];
+                c.innerHTML += `<div style="display:flex;justify-content:space-between;padding:8px;background:${done?'#fff9c4':'#eee'};margin:4px 0;border-radius:10px"><span>${done?'✅':'🔒'} ${a.n}</span><b>${a.req.toLocaleString()}${a.t=='t'?'s':''}</b></div>`;
+            });
+        } else if(type == 'skins') {
+            t.innerText = "SKINS";
+            const sks = [{e:'🥒',r:0},{e:'🤠',r:1000},{e:'🕶️',r:10000},{e:'👑',r:100000},{e:'👽',r:500000}];
+            sks.forEach(sk => {
+                const ok = s.clicks >= sk.r;
+                c.innerHTML += `<div class="card" onclick="${ok?`setS('${sk.e}')`:''}"><span>${ok?sk.e:'🔒'}</span><small>${ok?'Unlocked':sk.r+' clicks'}</small></div>`;
+            });
+        } else if(type == 'top') {
+            t.innerText = "TOP";
+            let top = JSON.parse(localStorage.getItem('global_top')) || {};
+            Object.entries(top).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach((x, i) => {
+                c.innerHTML += `<div style="display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #eee"><span>${i+1}. ${x[0]}</span><b>${x[1].toLocaleString()} €</b></div>`;
+            });
+        }
+    }
+
+    function buy(id) { 
+        if (s.m >= s.up[id].c) { 
+            s.m -= s.up[id].c; s.up[id].cnt++; s.up[id].c *= 1.8; 
+            playS(600, 'triangle'); update(); openM('shop'); 
+        } 
+    }
+    function setS(e) { s.s = e; update(); openM('skins'); }
+    function closeM() { document.getElementById('modal-box').style.display = 'none'; }
+    function logout() { localStorage.removeItem('currentUser'); location.href='index.html'; }
+    setInterval(() => { let gps = 0; Object.values(s.up).forEach(u => { if(u.t == 's') gps += (u.p * u.cnt); }); if(gps > 0) { s.m += (gps * mult)/10; update(); } }, 100);
+    update();
+</script>
+</body>
+</html>
