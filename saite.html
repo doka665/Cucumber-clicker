@@ -32,6 +32,7 @@
         #notif.show { top: 20px; }
         #buff-notice { position: fixed; bottom: 20px; right: 20px; background: gold; color: #000; padding: 10px 20px; border-radius: 10px; display: none; font-weight: bold; border: 3px solid #b8860b; z-index: 1000; }
     </style>
+    <script src="https://zohbffxnyjasxhjlxfun.supabase.co"></script>
 </head>
 <body>
 
@@ -44,7 +45,7 @@
     <button class="nav-btn" onclick="openM('shop')">SHOP</button>
     <button class="nav-btn" onclick="openM('skins')">SKINS</button>
     <button class="nav-btn" onclick="openM('ach')">ACHIEVEMENTS</button>
-    <button class="nav-btn" onclick="openM('top')">TOP</button>
+    <button class="nav-btn" onclick="(async () => await openM('top'))()">TOP</button>
     
     <div class="stats-container">
         <small>TOTAL CLICKS</small>
@@ -72,6 +73,11 @@
 </div>
 
 <script>
+    const { createClient } = supabase;
+    const supabaseUrl = 'YOUR_SUPABASE_URL'; // Replace with your Supabase project URL
+    const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'; // Replace with your Supabase anon key
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playS(f, type='sine', d=0.1) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -150,8 +156,11 @@
         });
 
         localStorage.setItem('g_'+user, JSON.stringify(s));
-        let top = JSON.parse(localStorage.getItem('global_top')) || {};
-        if(s.m > 0) { top[user] = Math.floor(s.m); localStorage.setItem('global_top', JSON.stringify(top)); }
+        if(s.m > 0) {
+            try {
+                supabaseClient.from('leaderboard').upsert({ username: user, money: Math.floor(s.m) }, { onConflict: 'username' });
+            } catch(e) {}
+        }
     }
 
     function showNotif(txt) {
@@ -214,9 +223,13 @@
             });
         } else if(type == 'top') {
             t.innerText = "TOP";
-            let top = JSON.parse(localStorage.getItem('global_top')) || {};
-            Object.entries(top).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach((x, i) => {
-                c.innerHTML += `<div style="display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #eee"><span>${i+1}. ${x[0]}</span><b>${x[1].toLocaleString()} €</b></div>`;
+            let top = [];
+            try {
+                const { data, error } = await supabaseClient.from('leaderboard').select('username, money').order('money', { ascending: false }).limit(10);
+                if(data) top = data;
+            } catch(e) {}
+            top.forEach((x, i) => {
+                c.innerHTML += `<div style="display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #eee"><span>${i+1}. ${x.username}</span><b>${x.money.toLocaleString()} €</b></div>`;
             });
         }
     }
